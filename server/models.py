@@ -18,17 +18,29 @@ class User(db.Model, SerializerMixin):
     
     serialize_rules = ('-_password_hash', '-recipes.user')
 
+    @validates('username')
+    def validate_username(self, key, username):
+        if not username:
+            raise ValueError('Username is required')
+        return username
+
     @hybrid_property
     def password_hash(self):
         raise AttributeError("Cannot access password hash directly!")
 
-    def set_password(self, password):
+    @password_hash.setter
+    def password_hash(self, password):
+        if password is None:
+            raise ValueError("Password cannot be None")
         password_hash = bcrypt.generate_password_hash(password.encode('utf-8'))
         self._password_hash = password_hash.decode('utf-8')
 
     def authenticate(self, password):
-        return bcrypt.check_password_hash(self._password_hash, password.encode('utf-8'))
-
+        return bcrypt.check_password_hash(
+            self._password_hash.encode('utf-8'), 
+            password.encode('utf-8')
+        )
+    
 class Recipe(db.Model, SerializerMixin):
     __tablename__ = 'recipes'
     

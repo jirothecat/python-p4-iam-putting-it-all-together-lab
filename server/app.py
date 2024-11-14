@@ -9,43 +9,63 @@ from models import User, Recipe
 
 class Signup(Resource):
     def post(self):
+        data = request.get_json()
+        
         try:
-            data = request.get_json()
-            user = User()
-            user.username = data['username']
-            user.set_password(data['password'])
-            user.image_url = data.get('image_url')
-            user.bio = data.get('bio')
-
+            # Check if username is provided
+            if 'username' not in data or not data['username']:
+                return {'errors': ['Username is required']}, 422
+                
+            # Check if password is provided
+            if 'password' not in data or not data['password']:
+                return {'errors': ['Password is required']}, 422
+            
+            # Create new user
+            user = User(
+                username=data['username'],
+                image_url=data.get('image_url'),
+                bio=data.get('bio')
+            )
+            user.password_hash = data['password']
+            
             db.session.add(user)
             db.session.commit()
 
             session['user_id'] = user.id
+            
             return {
                 'id': user.id,
                 'username': user.username,
                 'image_url': user.image_url,
                 'bio': user.bio
             }, 201
-
+            
+        except ValueError as e:
+            return {'errors': [str(e)]}, 422
         except IntegrityError:
             db.session.rollback()
-            return {'error': 'Username already exists'}, 422
-        except ValueError as e:
-            return {'error': str(e)}, 422
+            return {'errors': ['Username must be unique']}, 422
+        except KeyError:
+            return {'errors': ['Invalid data provided']}, 422
 
 class CheckSession(Resource):
     def get(self):
         user_id = session.get('user_id')
-        if user_id:
-            user = User.query.filter_by(id=user_id).first()
-            return {
-                'id': user.id,
-                'username': user.username,
-                'image_url': user.image_url,
-                'bio': user.bio
-            }, 200
-        return {'error': 'Not authorized'}, 401
+        
+        if not user_id:
+            return {'error': 'Not authorized'}, 401
+            
+        user = User.query.filter_by(id=user_id).first()
+        
+        if not user:
+            return {'error': 'Not authorized'}, 401
+            
+        return {
+            'id': user.id,
+            'username': user.username,
+            'image_url': user.image_url,
+            'bio': user.bio
+        }, 200
 
 class Login(Resource):
     def post(self):
